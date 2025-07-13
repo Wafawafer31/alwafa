@@ -1,17 +1,60 @@
-<?php require_once 'includes/layout_start.php'; ?>
-<?php require_once 'includes/header.php'; ?>
+<?php
+require_once __DIR__ . '/includes/config.php';
 
-<div class="hero-slant overlay" style="background-image: url('assets/images/hero-min5.jpg');">
-    <div class="container">
-        <div class="row align-items-center justify-content-center">
-            <div class="col-lg-7 intro text-center">
-                <h1 class="text-white font-weight-bold mb-4">Welcome to AlwafaHub</h1>
-                <p class="text-white mb-4">Your moments, captured and delivered instantly.</p>
-                <p><a href="/alwafahub/client/demo-event" class="btn btn-primary">View Demo Event</a></p>
-            </div>
-        </div>
-    </div>
-</div>
+// Simple Router
+$path = $_GET['path'] ?? '';
+$parts = explode('/', rtrim($path, '/'));
 
-<?php require_once 'includes/footer.php'; ?>
-<?php require_once 'includes/layout_end.php'; ?>
+switch ($parts[0]) {
+    case '':
+    case 'home':
+        include 'public/home.php';
+        break;
+    
+    case 'client':
+        if (isset($parts[1])) {
+            $_GET['client'] = $parts[1];
+            include 'alwafa.php';
+        } else {
+            http_response_code(404);
+            include 'public/404.php';
+        }
+        break;
+
+    case 'page':
+        if (isset($parts[1])) {
+            $_GET['slug'] = $parts[1];
+            include 'public/page.php';
+        } else {
+            http_response_code(404);
+            include 'public/404.php';
+        }
+        break;
+
+    case 'admin':
+        $admin_page = $parts[1] ?? 'index';
+        $admin_file = __DIR__ . '/admin/' . $admin_page . '.php';
+        if (file_exists($admin_file)) {
+            include $admin_file;
+        } else {
+            http_response_code(404);
+            include 'public/404.php';
+        }
+        break;
+
+    case 'ajax':
+        $ajax_action = $parts[1] ?? '';
+        $ajax_file = __DIR__ . '/ajax/' . $ajax_action . '.php';
+        if (file_exists($ajax_file)) {
+            include $ajax_file;
+        } else {
+            http_response_code(404);
+            echo json_encode(['error' => 'Action not found']);
+        }
+        break;
+
+    default:
+        http_response_code(404);
+        include 'public/404.php';
+        break;
+}
