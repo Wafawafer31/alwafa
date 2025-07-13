@@ -9,18 +9,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $slug = createSlug($_POST['slug'] ?: $name);
     $event_date = $_POST['event_date'];
     $gdrive_id = $_POST['google_drive_folder_id'];
+    $ftp_folder = $_POST['ftp_folder'] ?? null;
+    $ftp_password = $_POST['ftp_password'] ? password_hash($_POST['ftp_password'], PASSWORD_DEFAULT) : null; // Enkripsi password FTP
     $client_id = $_POST['client_id'];
 
     if ($client_id) { // Update
-        $stmt = $mysqli->prepare("UPDATE clients SET name=?, slug=?, event_date=?, google_drive_folder_id=? WHERE id=?");
-        $stmt->bind_param("ssssi", $name, $slug, $event_date, $gdrive_id, $client_id);
+        // Jangan update password jika kosong
+        if ($ftp_password) {
+            $stmt = $mysqli->prepare("UPDATE clients SET name=?, slug=?, event_date=?, google_drive_folder_id=?, ftp_folder=?, ftp_password=? WHERE id=?");
+            $stmt->bind_param("ssssssi", $name, $slug, $event_date, $gdrive_id, $ftp_folder, $ftp_password, $client_id);
+        } else {
+            $stmt = $mysqli->prepare("UPDATE clients SET name=?, slug=?, event_date=?, google_drive_folder_id=?, ftp_folder=? WHERE id=?");
+            $stmt->bind_param("sssssi", $name, $slug, $event_date, $gdrive_id, $ftp_folder, $client_id);
+        }
     } else { // Insert
-        $stmt = $mysqli->prepare("INSERT INTO clients (name, slug, event_date, google_drive_folder_id) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("ssss", $name, $slug, $event_date, $gdrive_id);
+        $stmt = $mysqli->prepare("INSERT INTO clients (name, slug, event_date, google_drive_folder_id, ftp_folder, ftp_password) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssssss", $name, $slug, $event_date, $gdrive_id, $ftp_folder, $ftp_password);
     }
     
     if($stmt->execute()) {
-        // Buat direktori untuk klien baru
         $client_dir = __DIR__ . '/../uploads/' . $slug;
         if (!is_dir($client_dir)) {
             mkdir($client_dir, 0777, true);
@@ -85,6 +92,16 @@ include 'includes/admin_header.php';
                     <input type="text" class="form-control" id="google_drive_folder_id" name="google_drive_folder_id" value="<?php echo htmlspecialchars($edit_client['google_drive_folder_id'] ?? ''); ?>">
                 </div>
             </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="ftp_folder" class="form-label">Folder FTP (contoh: /acara_nikah)</label>
+                    <input type="text" class="form-control" id="ftp_folder" name="ftp_folder" value="<?php echo htmlspecialchars($edit_client['ftp_folder'] ?? ''); ?>">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="ftp_password" class="form-label">Password FTP (kosongkan jika tidak ganti)</label>
+                    <input type="password" class="form-control" id="ftp_password" name="ftp_password">
+                </div>
+            </div>
             <button type="submit" class="btn btn-primary"><?php echo $edit_client ? 'Update Klien' : 'Simpan Klien'; ?></button>
             <?php if ($edit_client): ?>
             <a href="/alwafahub/admin/clients.php" class="btn btn-secondary">Batal</a>
@@ -96,31 +113,33 @@ include 'includes/admin_header.php';
 <div class="card">
     <div class="card-header">Daftar Klien</div>
     <div class="card-body">
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Nama Klien</th>
-                    <th>URL Galeri</th>
-                    <th>Folder Google Drive</th>
-                    <th>Status Sink.</th>
-                    <th>Aksi</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php while($row = $clients->fetch_assoc()): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($row['name']); ?></td>
-                    <td><a href="/alwafahub/client/<?php echo $row['slug']; ?>" target="_blank">/client/<?php echo $row['slug']; ?></a></td>
-                    <td><?php echo $row['google_drive_folder_id'] ? 'Terhubung' : 'Tidak'; ?></td>
-                    <td><?php echo htmlspecialchars($row['sync_status']); ?></td>
-                    <td>
-                        <a href="?edit=<?php echo $row['id']; ?>" class="btn btn-sm btn-warning">Edit</a>
-                        <a href="?delete=<?php echo $row['id']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin hapus klien ini?')">Hapus</a>
-                    </td>
-                </tr>
-                <?php endwhile; ?>
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Nama Klien</th>
+                        <th>Folder FTP</th>
+                        <th>URL Galeri</th>
+                        <th>Status Sink.</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php while($row = $clients->fetch_assoc()): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars($row['name']); ?><br><small class="text-muted"><?php echo $row['event_date']; ?></small></td>
+                        <td><?php echo htmlspecialchars($row['ftp_folder'] ?? 'Tidak diatur'); ?></td>
+                        <td><a href="/alwafahub/client/<?php echo $row['slug']; ?>" target="_blank">/client/<?php echo $row['slug']; ?></a></td>
+                        <td><?php echo htmlspecialchars($row['sync_status']); ?></td>
+                        <td>
+                            <a href="?edit=<?php echo $row['id']; ?>" class="btn btn-sm btn-warning">Edit</a>
+                            <a href="?delete=<?php echo $row['id']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin hapus klien ini?')">Hapus</a>
+                        </td>
+                    </tr>
+                    <?php endwhile; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
